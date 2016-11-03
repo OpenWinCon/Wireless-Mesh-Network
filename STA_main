@@ -38,7 +38,7 @@ system("uci get wireless.@wifi-iface[0].mode >test.out 2>&1")
 f = open("./test.out",'r')
 MODE = f.readline()
 print MODE
-CHECK = MODE.count('sta')¿ÀÈÄ 1:30 2016-10-11
+CHECK = MODE.count('sta')Â¿Ã€ÃˆÃ„ 1:30 2016-10-11
 if CHECK == 1: MODE = 'sta'
 else: MODE = 'ap'
 
