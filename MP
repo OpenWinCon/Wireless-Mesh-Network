@@ -1,0 +1,86 @@
+#!/usr/bin/python2.7
+from os import system
+from socket import *
+from select import *
+from time import ctime
+import sys
+import time 
+
+#IP address 
+system("ifconfig br-lan | grep inet &>IPaddr.out 2>&1")
+f=open("./IPaddr.out",'r')
+tmp = str(f.readlines())
+addr = tmp[22:35]#[32:35]  #[22:35] #its own IP address#print(addr)
+
+#Count the number of STAs associated in MP
+system("iw dev wlan0 station dump &>num_sta.out 2>&1")
+f=open("./num_sta.out",'r')
+tmp = str(f.readlines())
+NUM_STA=int(tmp.count('Station')) #previous num STAs
+NUM_STA1=NUM_STA #next num STAs: initially set to same as NUM_STA
+#print(NUM_STA)
+
+#Socket HOST = '192.168.0.19'
+PORT = 1194
+BUFSIZE = 1024
+ADDR = (HOST, PORT)
+
+#MP LIST
+f=open("MP_LIST.out","w")
+clientSocket = socket(AF_INET, SOCK_STREAM)
+try: 
+	clientSocket.connect(ADDR)
+except Exception as e: 
+	sys.exit()
+	
+#aaa = str('192.168.1.20')
+#system("ip rule add from '%s' priority 10 table vpn" %(aaa))
+
+while True: 
+	try:  
+		connection_list = [sys.stdin, clientSocket]  
+		read_socket, write_socket, error_socket = select(connection_list, [], [], 10)  
+		system("iw dev wlan0 station dump &>num_sta.out 2>&1")    
+		#time.sleep(1)  
+		f=open("./num_sta.out",'r')  
+		tmp = str(f.readlines())  
+		NUM_STA1=tmp.count('Station') #next num STAs  
+		#print(NUM_STA)  
+		#print(NUM_STA1)    
+		
+		if NUM_STA != NUM_STA1:   
+			clientSocket.sendall('%s %s' %(NUM_STA1,addr))   
+			NUM_STA = NUM_STA1     
+		#clientSocket.sendall('%s' %NUM_STA1)  
+		for sock in read_socket:    
+			if sock == clientSocket:     
+				data = sock.recv(BUFSIZE)    
+				if not data:     
+					clientSocket.close()     
+					sys.exit()    
+				else:       
+					print('%s' % data)        
+					check = data.count(addr)     
+					if check == 0: #whether the data is its own data or not: own data 1  other data 0      
+						f = open("./MP_LIST.out",'r')      
+						tmp = str(f.readlines())      
+						#check1 = tmp.count(addr) # already registered in MP_LIST: yes 1  no 0      
+						#print(check1)      
+						#if check1 == 0:       
+							#f = open("./MP_LIST.out",'a')       
+							#f.write('%s' %(data))       
+						if len(data) > 28:        
+							ID = str(data[29:41])       
+							#print(ID)       
+							NUM = int(data[26:28])       
+							#print(NUM)       
+							f = open("./MP_LIST.out",'a')        
+							f.write('%s %s' %(ID,NUM))        
+							system("ip rule add from '%s' priority '%s' table vpn" %(ID,NUM+1))
+							system("ip rule del from '%s' priority '%s' table vpn" %(ID, NUM))
+							system("ip rule del from '%s' priority '%s' table vpn" %(ID,NUM+2))
+							
+										
+	except KeyboardInterrupt:    
+		clientSocket.close()      
+		sys.exit()                                                                                     
