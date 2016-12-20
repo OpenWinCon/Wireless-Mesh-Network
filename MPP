@@ -1,52 +1,65 @@
 #!/usr/bin/python2.7
-
+from os import system
 from socket import *
 from select import *
-import sys
 from time import ctime
 
-HOST = '192.168.0.21'
-PORT = 12345
+#IP address 
+system("ifconfig br-lan | grep inet &>IPaddr.out 2>&1")
+f=open("./IPaddr.out",'r')
+tmp = str(f.readlines())
+tmp = tmp[22:35]
+#print(tmp)
+
+#Count the number of STAs associated in MP
+system("iw dev wlan0 station dump &>num_sta.out 2>&1")
+f=open("./num_sta.out",'r')
+tmp = str(f.readlines())
+NUM_STA=tmp.count('Station')
+#print(NUM_STA)
+
+#Socket 
+HOST = '192.168.0.19'
+PORT = 1194
 BUFSIZE = 1024
-ADDR (HOST,PORT)
+ADDR = (HOST, PORT)
 
 serverSocket = socket(AF_INET, SOCK_STREAM)
-
 serverSocket.bind(ADDR)
-
 serverSocket.listen(10)
 connection_list = [serverSocket]
-print('start %s port' % str(PORT))
 
-f = open("STA_list",'w')
-f.close
-f = open("AP_list:,'w')
-f.close
-
-while connection_list:
-	try:
-		print('wait')
-		read_socket, write_socket, error_socket = select(connection_list, [], [], 10)
-		for sock in read_socket:
-			if sock == serverSocket:
-				clientSocket, addr_info = serverSocket.accept()
-				connection_list.append(clientSocket)
-				print('[INFO] [%s]connection establishment[%s]' %(ctime(), addr_info[0]))
-			else:
-				data = sock.recv(BUFSIZE)
-				if data:
-					print('[INFO] [%s] Received data' % ctime())
-					CHECK = data.count('sta')
-					if CHECK == 1:
-						f = open("STA_list",'a')
-						f.write(data)
-						f.close
-						print data
-				else:
-					connection_list.remove(sock)
-					sock.close()
-					print('[INFO] [%s] disconnection' % ctime())
-	except KeyboardInterrupt:
-		serverSocket.close()
-		sys.exit()
-
+while connection_list: 
+	try:  read_socket, write_socket, error_socket = select(connection_list, [], [], 10)  
+	for sock in read_socket:   
+		if sock == serverSocket:    
+			clientSocket, addr_info = serverSocket.accept()    
+			connection_list.append(clientSocket)       
+			
+			#Response to client    
+			for socket_in_list in connection_list:     
+				if socket_in_list != serverSocket and socket_in_list != sock:      
+					try:        
+						socket_in_list.send('New Mesh Point Access')      
+					except Exception as e:       
+						socket_in_list.close()       
+						connection_list.remove(socket_in_list)   
+				
+				else:    
+					data = sock.recv(BUFSIZE)    
+					if data:      
+						for socket_in_list in connection_list:      
+							if socket_in_list != serverSocket: #and socket_in_list != sock:       
+								try:        
+									socket_in_list.send('[%s] %s' %(ctime(),data))       
+								except Exception as e:        
+									print(e.message)        
+									socket_in_list.close()        
+									connection_list.remove(socket_in_list)        
+									continue    
+					else:     
+						connection_list.remove(sock)     
+						sock.close() 
+	except KeyboardInterrupt:  
+		severSocket.close()  
+		sys.exit()  
